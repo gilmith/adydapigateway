@@ -21,17 +21,18 @@ public class RouterLogin {
 	@Bean("getLogin")
 	public RouteLocator getLogin(RouteLocatorBuilder rlb) {
 		return rlb.routes()
-				.route("login_service",path -> path.path("/adyd/login")
+				.route("create_service",path -> path.path("/adyd/oauth/login/create")
 						.filters(f ->
 							f.filter(extracted())
-							.rewritePath("/adyd/login", "/login")
+							.rewritePath("/adyd/oauth/login/create", "/login/create")
 						)
-						.uri("http://localhost:10001")
+						.uri("https://jacobo:10002")
 				).build();
 	}
 
 	private GatewayFilter extracted() {
 		return (exchange, chain) -> {
+			
 			log.info("en el filter de la ruta");
 		    val method = exchange.getRequest().getMethod();
 		    if(method.equals(HttpMethod.GET)) {
