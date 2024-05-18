@@ -26,7 +26,7 @@ public class RouterLogin {
 							f.filter(extracted())
 							.rewritePath("/adyd/oauth/login/create", "/login/create")
 						)
-						.uri("https://jacobo:10002")
+						.uri("https://login:10002")
 				).build();
 	}
 
