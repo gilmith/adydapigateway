@@ -13,9 +13,9 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class FallbackController {
 
-    @GetMapping
+    @GetMapping("/logincreate")
     public ResponseEntity<String> fallback() {
     	log.info("ejecutando el breaker");
-        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body("Service is temporarily unavailable.");
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body("Imposible crear usuario.");
     }
 }

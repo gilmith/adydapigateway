@@ -30,7 +30,10 @@ public class RouterLogin {
 				.route("create_service",path -> path.path("/adyd/oauth/login/create")
 						.filters(f ->
 							f.filter(createFilter())
-							.rewritePath("/adyd/oauth/login/create", "/login/create"))									
+							.rewritePath("/adyd/oauth/login/create", "/login/create")
+							.circuitBreaker(cb -> cb.setFallbackUri("forward:/fallback/logincreate")									
+									.setName("no disponible")
+									))							
 						.uri(uriRedirect)).build();												
 	}
 
@@ -46,6 +49,8 @@ public class RouterLogin {
 		    return chain.filter(exchange);
 		};
 	}
+	
+	
 	
 
 
