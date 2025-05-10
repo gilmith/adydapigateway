@@ -6,11 +6,10 @@ import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 
 
 @SpringBootApplication
-@EnableDiscoveryClient
 public class AdydApiGatewayApplication {
 
 	public static void main(String[] args) {
 		SpringApplication.run(AdydApiGatewayApplication.class, args);
 	}
 
-}
+}	
