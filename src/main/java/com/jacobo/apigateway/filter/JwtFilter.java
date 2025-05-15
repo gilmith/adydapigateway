@@ -10,6 +10,8 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
+import org.springframework.cloud.gateway.filter.GatewayFilterChain;
+import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -22,55 +24,52 @@ import reactor.core.publisher.Mono;
 @Component
 @Slf4j
 @RequiredArgsConstructor
-public class JwtFilter extends AbstractGatewayFilterFactory<JwtFilter.Config> {
-
+public class JwtFilter implements GlobalFilter { // Implementa GlobalFilter
 
     @Value("${secret}")
     private String secret;
 
-
     @Override
-    public GatewayFilter apply(Config config) {
-        return (exchange, chain) -> {
-            final ServerHttpRequest request = exchange.getRequest();
-            if (!request.getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
-                return onError(exchange, "JWT not found", HttpStatus.UNAUTHORIZED);
+    public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        log.info("JWT filter applied globally");
+        final ServerHttpRequest request = exchange.getRequest();
+        if (!request.getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
+            return onError(exchange, "JWT not found", HttpStatus.UNAUTHORIZED);
+        }
+        final String authorizationHeader = request.getHeaders().getOrEmpty(HttpHeaders.AUTHORIZATION).getFirst();
+        if (!authorizationHeader.startsWith("Bearer ")) {
+            return onError(exchange, "Invalid Authorization header format", HttpStatus.UNAUTHORIZED);
+        }
+
+        final String token = authorizationHeader.substring(7); // Remove "Bearer " prefix
+
+        try {
+            val jwt = validateToken(token);
+            return chain.filter(exchange.mutate().request(request).build());
+
+        } catch (AlgorithmMismatchException e) {
+            log.error("Wrong algorithm. The algorithm used does not match the corresponding one in the token header");
+            return onError(exchange, "wrong algorithm", HttpStatus.UNAUTHORIZED);
+        } catch (SignatureVerificationException e) {
+            log.error("Invalid signature. The value of secret is incorrect");
+            return onError(exchange, "Invalid signature", HttpStatus.UNAUTHORIZED);
+        } catch (InvalidClaimException e) {
+            log.error("Wrong audience. Required audiences are missing");
+            return onError(exchange, "Invalid claims", HttpStatus.UNAUTHORIZED);
+        } catch (JWTDecodeException e) {
+            if (e.getMessage().contains("token was expected")) {
+                log.error("JWT decoding failed. The token does not contain the necessary three distinct parts.");
+                return onError(exchange, "Invalid towken", HttpStatus.UNAUTHORIZED);
+
+            } else {
+                log.error("Invalid decoding. The token format is incorrect.");
+                return onError(exchange, "Invalid decoding", HttpStatus.UNAUTHORIZED);
+
             }
-            final String authorizationHeader = request.getHeaders().getOrEmpty(HttpHeaders.AUTHORIZATION).getFirst();
-            if (!authorizationHeader.startsWith("Bearer ")) {
-                return onError(exchange, "Invalid Authorization header format", HttpStatus.UNAUTHORIZED);
-            }
-
-            final String token = authorizationHeader.substring(7); // Remove "Bearer " prefix
-
-            try {
-                val jwt = validateToken(token);
-                return chain.filter(exchange.mutate().request(request).build());
-
-            } catch (AlgorithmMismatchException e) {
-                log.error("Wrong algorithm. The algorithm used does not match the corresponding one in the token header");
-                return onError(exchange, "wrong algorithm", HttpStatus.UNAUTHORIZED);
-            } catch (SignatureVerificationException e) {
-                log.error("Invalid signature. The value of secret is incorrect");
-                return onError(exchange, "Invalid signature", HttpStatus.UNAUTHORIZED);
-            } catch (InvalidClaimException e) {
-                log.error("Wrong audience. Required audiences are missing");
-                return onError(exchange, "Invalid claims", HttpStatus.UNAUTHORIZED);
-            } catch (JWTDecodeException e) {
-                if (e.getMessage().contains("token was expected")) {
-                    log.error("JWT decoding failed. The token does not contain the necessary three distinct parts.");
-                    return onError(exchange, "Invalid towken", HttpStatus.UNAUTHORIZED);
-
-                } else {
-                    log.error("Invalid decoding. The token format is incorrect.");
-                    return onError(exchange, "Invalid decoding", HttpStatus.UNAUTHORIZED);
-
-                }
-            } catch (TokenExpiredException e) {
-                log.error(e.getMessage());
-                return onError(exchange, "token expired", HttpStatus.UNAUTHORIZED);
-            }
-        };
+        } catch (TokenExpiredException e) {
+            log.error(e.getMessage());
+            return onError(exchange, "token expired", HttpStatus.UNAUTHORIZED);
+        }
     }
 
     private Mono<Void> onError(ServerWebExchange exchange, String err, HttpStatus httpStatus) {
@@ -85,7 +84,4 @@ public class JwtFilter extends AbstractGatewayFilterFactory<JwtFilter.Config> {
 
     }
 
-    public static class Config {
-        // You can add configuration properties for your filter here if needed.
-    }
 }
