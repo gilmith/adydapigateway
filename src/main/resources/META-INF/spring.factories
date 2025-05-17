@@ -1,1 +1,2 @@
-org.springframework.cloud.bootstrap.BootstrapConfiguration = org.jacobo.adyd.adydsecurity.CustomConfigServiceBootstrapConfiguration
+org.springframework.cloud.bootstrap.BootstrapConfiguration = com.jacobo.apigateway.config.CustomConfigServiceBootstrapConfiguration
+
