@@ -33,6 +33,7 @@ public class JwtFilter implements GlobalFilter { // Implementa GlobalFilter
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         log.info("JWT filter applied globally");
         final ServerHttpRequest request = exchange.getRequest();
+        ServerHttpResponse response = exchange.getResponse();
         if (!request.getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
             return onError(exchange, "JWT not found", HttpStatus.UNAUTHORIZED);
         }
@@ -41,12 +42,19 @@ public class JwtFilter implements GlobalFilter { // Implementa GlobalFilter
             return onError(exchange, "Invalid Authorization header format", HttpStatus.UNAUTHORIZED);
         }
 
-        final String token = authorizationHeader.substring(7); // Remove "Bearer " prefix
+        final String token = authorizationHeader.substring(7);
 
         try {
-            val jwt = validateToken(token);
-            return chain.filter(exchange.mutate().request(request).build());
-
+            validateToken(token);
+            return chain.filter(exchange.mutate().request(request).build())
+                .retry(1)
+                .then(Mono.fromRunnable(() -> {
+                    response.getHeaders().forEach((key, value) -> {
+                        if (value != null && value.size() > 1) {
+                            response.getHeaders().set(key, value.get(0));
+                        }
+                    });
+                }));
         } catch (AlgorithmMismatchException e) {
             log.error("Wrong algorithm. The algorithm used does not match the corresponding one in the token header");
             return onError(exchange, "wrong algorithm", HttpStatus.UNAUTHORIZED);
@@ -60,11 +68,9 @@ public class JwtFilter implements GlobalFilter { // Implementa GlobalFilter
             if (e.getMessage().contains("token was expected")) {
                 log.error("JWT decoding failed. The token does not contain the necessary three distinct parts.");
                 return onError(exchange, "Invalid towken", HttpStatus.UNAUTHORIZED);
-
             } else {
                 log.error("Invalid decoding. The token format is incorrect.");
                 return onError(exchange, "Invalid decoding", HttpStatus.UNAUTHORIZED);
-
             }
         } catch (TokenExpiredException e) {
             log.error(e.getMessage());
@@ -73,12 +79,13 @@ public class JwtFilter implements GlobalFilter { // Implementa GlobalFilter
     }
 
     private Mono<Void> onError(ServerWebExchange exchange, String err, HttpStatus httpStatus) {
+        log.error(err);
         ServerHttpResponse response = exchange.getResponse();
         response.setStatusCode(httpStatus);
         return response.setComplete();
     }
 
-    private DecodedJWT validateToken(String requestTokenHeader) {
+    private void validateToken(String requestTokenHeader) {
         JWTVerifier verifier = JWT.require(Algorithm.HMAC384(secret)).build();
         return verifier.verify(requestTokenHeader);
 
