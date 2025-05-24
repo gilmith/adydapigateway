@@ -87,8 +87,7 @@ public class JwtFilter implements GlobalFilter { // Implementa GlobalFilter
 
     private void validateToken(String requestTokenHeader) {
         JWTVerifier verifier = JWT.require(Algorithm.HMAC384(secret)).build();
-        return verifier.verify(requestTokenHeader);
-
+        verifier.verify(requestTokenHeader);
     }
 
 }
